@@ -1,0 +1,161 @@
+# =====================================================
+# TERRAFORM VARIABLE VALUES
+# Copy this file and rename to terraform.tfvars
+# Update values for your specific customer/environment
+# =====================================================
+
+# =====================================================
+# CORE SETTINGS (Always Required)
+# =====================================================
+customer_short_name = "contoso"        # 3-8 lowercase letters
+environment         = "prod"           # prod, dev, staging, uat, test
+location            = "eastus"         # Azure region
+location_code       = "eus"            # Short region code
+subscription_id     = "00000000-0000-0000-0000-000000000000"  # Your subscription ID
+instance_number     = 1                # Instance number (typically 1)
+
+# =====================================================
+# TAGS
+# =====================================================
+tags = {
+  Environment = "Production"
+  ManagedBy   = "Terraform"
+  Customer    = "Contoso"
+  CostCenter  = "IT-Infrastructure"
+}
+
+# =====================================================
+# MODULE CONTROL FLAGS
+# Enable/disable modules as needed for this deployment
+# =====================================================
+enable_networking = true  # Always true for new customers
+
+# =====================================================
+# STORAGE ACCOUNTS (Multiple Named Instances)
+# Create multiple storage accounts for different purposes
+# Each key becomes part of the resource name suffix
+# =====================================================
+storage_accounts = {
+  data = {
+    tier              = "Standard"
+    replication_type  = "LRS"
+    blob_containers   = ["uploads", "processed", "archive"]
+  }
+  logs = {
+    tier              = "Standard"
+    replication_type  = "LRS"
+    blob_containers   = ["app-logs", "audit-logs", "diagnostics"]
+  }
+  backups = {
+    tier              = "Standard"
+    replication_type  = "GRS"  # Geo-redundant for backups
+    blob_containers   = ["sql-backups", "vm-snapshots"]
+  }
+  # Add more as needed - up to 10 or more storage accounts
+  # appX = {
+  #   tier              = "Standard"
+  #   replication_type  = "ZRS"
+  #   blob_containers   = ["app-data"]
+  # }
+}
+
+# =====================================================
+# KEY VAULTS (Multiple Named Instances)
+# Create multiple Key Vaults for different purposes
+# Each key becomes part of the resource name suffix
+# =====================================================
+key_vaults = {
+  secrets = {
+    sku_name    = "standard"
+    enable_rbac = true
+  }
+  certs = {
+    sku_name    = "premium"  # Premium for HSM-backed certificates
+    enable_rbac = true
+  }
+  # Add more as needed - separate vaults per application
+  # appX = {
+  #   sku_name    = "standard"
+  #   enable_rbac = true
+  # }
+}
+
+# =====================================================
+# SQL DATABASES (Multiple Named Instances)
+# Create multiple SQL Servers and Databases
+# Each key becomes part of the resource name suffix
+# =====================================================
+sql_databases = {
+  orders = {
+    admin_username = "sqladmin"
+    admin_password = "ChangeMe123!SecurePassword"  # Use Key Vault reference in production
+    database_name  = "OrdersDB"
+    sku_name       = "S1"
+    max_size_gb    = 250
+    zone_redundant = false
+  }
+  inventory = {
+    admin_username = "sqladmin"
+    admin_password = "ChangeMe123!SecurePassword"  # Use Key Vault reference in production
+    database_name  = "InventoryDB"
+    sku_name       = "S2"
+    max_size_gb    = 500
+    zone_redundant = true
+  }
+  # Add more databases as needed
+}
+
+# =====================================================
+# OPTIONAL MODULES
+# =====================================================
+enable_virtual_machine = false
+enable_app_service     = false
+enable_front_door      = false
+enable_redis_cache     = false
+
+# =====================================================
+# NETWORKING CONFIGURATION
+# Customize address spaces and subnets as needed
+# =====================================================
+vnet_address_space = ["10.0.0.0/16"]
+
+subnets = {
+  gateway = {
+    address_prefix = "10.0.0.0/24"
+  }
+  appservice = {
+    address_prefix = "10.0.1.0/24"
+  }
+  vms = {
+    address_prefix = "10.0.2.0/24"
+  }
+  data = {
+    address_prefix = "10.0.3.0/24"
+  }
+  mgmt = {
+    address_prefix = "10.0.255.0/24"
+  }
+}
+
+# =====================================================
+# VIRTUAL MACHINE CONFIGURATION (if enabled)
+# =====================================================
+# vm_size          = "Standard_D2s_v3"
+# vm_admin_username = "azureadmin"
+
+# =====================================================
+# APP SERVICE CONFIGURATION (if enabled)
+# =====================================================
+# app_service_sku_name = "P1v2"  # B1, S1, P1v2, P2v2, etc.
+
+# =====================================================
+# FRONT DOOR CONFIGURATION (if enabled)
+# =====================================================
+# front_door_sku_name = "Standard_AzureFrontDoor"  # or Premium_AzureFrontDoor
+
+# =====================================================
+# REDIS CACHE CONFIGURATION (if enabled)
+# =====================================================
+# redis_capacity = 1
+# redis_family   = "C"         # C for Basic/Standard, P for Premium
+# redis_sku_name = "Standard"  # Basic, Standard, Premium

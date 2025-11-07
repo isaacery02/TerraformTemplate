@@ -1,0 +1,84 @@
+# Output Values for Deployment
+
+# Networking Outputs
+output "vnet_id" {
+  description = "Virtual Network ID"
+  value       = var.enable_networking ? module.networking[0].vnet_id : null
+}
+
+output "vnet_name" {
+  description = "Virtual Network name"
+  value       = var.enable_networking ? module.networking[0].vnet_name : null
+}
+
+output "subnet_ids" {
+  description = "Map of subnet names to IDs"
+  value       = var.enable_networking ? module.networking[0].subnet_ids : {}
+}
+
+output "resource_group_name" {
+  description = "Resource group name for networking resources"
+  value       = var.enable_networking ? module.networking[0].resource_group_name : null
+}
+
+# Storage Account Outputs (Multiple Instances)
+output "storage_accounts" {
+  description = "Map of storage account names and their details"
+  value = {
+    for key, sa in module.storage_account : key => {
+      name              = sa.storage_account_name
+      id                = sa.storage_account_id
+      blob_endpoint     = sa.primary_blob_endpoint
+      purpose           = key
+    }
+  }
+}
+
+# Key Vault Outputs (Multiple Instances)
+output "key_vaults" {
+  description = "Map of Key Vault names and their details"
+  value = {
+    for key, kv in module.key_vault : key => {
+      name    = kv.key_vault_name
+      id      = kv.key_vault_id
+      uri     = kv.key_vault_uri
+      purpose = key
+    }
+  }
+}
+
+# SQL Database Outputs (Multiple Instances)
+output "sql_databases" {
+  description = "Map of SQL Server names and their details"
+  value = {
+    for key, sql in module.sql_database : key => {
+      server_name   = sql.sql_server_name
+      server_fqdn   = sql.sql_server_fqdn
+      database_name = sql.database_name
+      database_id   = sql.database_id
+      purpose       = key
+    }
+  }
+  sensitive = true  # Contains sensitive server info
+}
+
+# Deployment Info
+output "deployment_info" {
+  description = "Summary of deployed resources"
+  value = {
+    customer    = var.customer_short_name
+    environment = var.environment
+    location    = var.location
+    region_code = var.location_code
+    resource_counts = {
+      storage_accounts = length(var.storage_accounts)
+      key_vaults       = length(var.key_vaults)
+      sql_databases    = length(var.sql_databases)
+      networking       = var.enable_networking ? 1 : 0
+      virtual_machines = var.enable_virtual_machine ? 1 : 0
+      app_services     = var.enable_app_service ? 1 : 0
+      front_doors      = var.enable_front_door ? 1 : 0
+      redis_caches     = var.enable_redis_cache ? 1 : 0
+    }
+  }
+}
