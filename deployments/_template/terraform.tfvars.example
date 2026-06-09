@@ -108,14 +108,18 @@ sql_databases = {
 # =====================================================
 # OPTIONAL MODULES
 # =====================================================
-enable_virtual_machine = false
-enable_app_service     = false
-enable_front_door      = false
-enable_redis_cache     = false
+enable_virtual_machine    = false
+enable_app_service        = false
+enable_front_door         = false
+enable_redis_cache        = false
+enable_avd                = false   # Azure Virtual Desktop
+enable_aca                = false   # Azure Container Apps
+enable_container_registry = false   # Azure Container Registry (for ACA)
 
 # =====================================================
 # NETWORKING CONFIGURATION
-# Customize address spaces and subnets as needed
+# Customize address spaces and subnets as needed.
+# Add avd-* and/or aca subnets when those modules are enabled.
 # =====================================================
 vnet_address_space = ["10.0.0.0/16"]
 
@@ -135,6 +139,20 @@ subnets = {
   mgmt = {
     address_prefix = "10.0.255.0/24"
   }
+  # ── Add these subnets when enable_avd = true ──
+  # avd-general = {
+  #   address_prefix = "10.0.10.0/23"   # /23 = 512 addresses — supports ~50+ session hosts
+  # }
+  # avd-power = {
+  #   address_prefix = "10.0.12.0/24"
+  # }
+  # avd-personal = {
+  #   address_prefix = "10.0.13.0/24"
+  # }
+  # ── Add this subnet when enable_aca = true with VNet integration ──
+  # aca = {
+  #   address_prefix = "10.0.20.0/23"   # /23 minimum for ACA; must have Microsoft.App/environments delegation
+  # }
 }
 
 # =====================================================
@@ -159,3 +177,114 @@ subnets = {
 # redis_capacity = 1
 # redis_family   = "C"         # C for Basic/Standard, P for Premium
 # redis_sku_name = "Standard"  # Basic, Standard, Premium
+
+# =====================================================
+# AZURE VIRTUAL DESKTOP CONFIGURATION (if enable_avd = true)
+#
+# QUICK START: copy the "general" pool block, set values, apply.
+# LARGE DEPLOYMENT: add more pool entries with different vm_sizes.
+#
+# subnet_key must match a key in the subnets map above.
+# vm_name_prefix must be ≤12 chars (3-digit suffix is appended → max 15 total).
+# =====================================================
+# avd_workspace_friendly_name = "Contoso Virtual Desktop"
+# avd_scaling_plan_timezone   = "Eastern Standard Time"
+# avd_scaling_plan_peak_start_time = "08:00"
+# avd_scaling_plan_peak_end_time   = "18:00"
+#
+# avd_host_pools = {
+#   # ── SMALL / STARTER: single Pooled pool ────────────────────────────────
+#   general = {
+#     type                  = "Pooled"
+#     load_balancer_type    = "BreadthFirst"
+#     max_sessions_per_host = 10
+#     session_host_count    = 5
+#     vm_size               = "Standard_D4s_v5"
+#     vm_name_prefix        = "avdgen"        # → avdgen001 … avdgen005
+#     subnet_key            = "avd-general"
+#     image_offer           = "windows-11"
+#     image_sku             = "win11-23h2-avd"
+#     aad_joined            = true
+#     admin_username        = "avdadmin"
+#     admin_password        = "ChangeMe123!"  # store in Key Vault in production
+#     enable_scaling_plan   = false
+#   }
+#
+#   # ── LARGE: add more pools for different user personas ──────────────────
+#   # powerusers = {
+#   #   type                  = "Pooled"
+#   #   load_balancer_type    = "DepthFirst"
+#   #   max_sessions_per_host = 4
+#   #   session_host_count    = 10
+#   #   vm_size               = "Standard_D16s_v5"
+#   #   vm_name_prefix        = "avdpwr"        # → avdpwr001 … avdpwr010
+#   #   subnet_key            = "avd-power"
+#   #   admin_username        = "avdadmin"
+#   #   admin_password        = "ChangeMe123!"
+#   #   enable_scaling_plan   = true
+#   # }
+#   #
+#   # personal = {
+#   #   type               = "Personal"
+#   #   load_balancer_type = "Persistent"      # must be Persistent for Personal pools
+#   #   session_host_count = 5
+#   #   vm_size            = "Standard_D8s_v5"
+#   #   vm_name_prefix     = "avdprs"          # → avdprs001 … avdprs005
+#   #   subnet_key         = "avd-personal"
+#   #   admin_username     = "avdadmin"
+#   #   admin_password     = "ChangeMe123!"
+#   # }
+# }
+
+# =====================================================
+# AZURE CONTAINER APPS CONFIGURATION (if enable_aca = true)
+#
+# QUICK START: define one app entry in container_apps.
+# PRODUCTION: set enable_container_registry = true and push images to the ACR output.
+# PRIVATE ENV: set aca_internal_load_balancer = true and add an "aca" subnet.
+# =====================================================
+# aca_internal_load_balancer = false
+# aca_log_retention_days     = 30
+# acr_sku                    = "Standard"
+#
+# container_apps = {
+#   # ── SIMPLE: single public-facing app ────────────────────────────────────
+#   frontend = {
+#     image               = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+#     cpu                 = 0.5
+#     memory              = "1Gi"
+#     min_replicas        = 1
+#     max_replicas        = 10
+#     ingress_external    = true
+#     ingress_target_port = 80
+#     http_scale_rule_requests = 50
+#   }
+#
+#   # ── PRODUCTION PATTERN: internal API + background worker ────────────────
+#   # api = {
+#   #   image               = "myacr.azurecr.io/myapi:v1.0"  # requires enable_container_registry = true
+#   #   cpu                 = 1.0
+#   #   memory              = "2Gi"
+#   #   min_replicas        = 2
+#   #   max_replicas        = 30
+#   #   ingress_external    = false               # internal only
+#   #   ingress_target_port = 8080
+#   #   env_vars = {
+#   #     ASPNETCORE_ENVIRONMENT = "Production"
+#   #     APPLICATIONINSIGHTS_CONNECTION_STRING = "InstrumentationKey=..."
+#   #   }
+#   #   http_scale_rule_requests = 100
+#   # }
+#   #
+#   # worker = {
+#   #   image           = "myacr.azurecr.io/worker:v1.0"
+#   #   cpu             = 2.0
+#   #   memory          = "4Gi"
+#   #   min_replicas    = 1
+#   #   max_replicas    = 10
+#   #   ingress_enabled = false                   # no HTTP endpoint for workers
+#   #   env_vars = {
+#   #     QUEUE_CONNECTION = "..."
+#   #   }
+#   # }
+# }

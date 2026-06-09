@@ -149,6 +149,24 @@ variable "enable_redis_cache" {
   default     = false
 }
 
+variable "enable_avd" {
+  description = "Enable Azure Virtual Desktop module (host pools, session hosts, workspace)"
+  type        = bool
+  default     = false
+}
+
+variable "enable_aca" {
+  description = "Enable Azure Container Apps module (environment + container apps)"
+  type        = bool
+  default     = false
+}
+
+variable "enable_container_registry" {
+  description = "Create an Azure Container Registry for use with ACA (only relevant when enable_aca = true)"
+  type        = bool
+  default     = false
+}
+
 # =====================================================
 # NETWORKING VARIABLES
 # =====================================================
@@ -246,4 +264,140 @@ variable "redis_sku_name" {
   description = "Redis cache SKU (Basic, Standard, Premium)"
   type        = string
   default     = "Standard"
+}
+
+# =====================================================
+# AZURE VIRTUAL DESKTOP VARIABLES (Optional)
+# Used when enable_avd = true
+# =====================================================
+
+variable "avd_workspace_friendly_name" {
+  description = "Display name shown to users in the AVD client (e.g., 'Contoso Virtual Desktop')"
+  type        = string
+  default     = "Virtual Desktop"
+}
+
+variable "avd_workspace_description" {
+  description = "Description of the AVD workspace"
+  type        = string
+  default     = "Azure Virtual Desktop workspace"
+}
+
+variable "avd_host_pools" {
+  description = <<-EOT
+    Map of AVD host pool configurations. Key is used as a name suffix (e.g., "general", "power-users").
+    subnet_key references a key in var.subnets — the full subnet ID is resolved in avd.tf.
+
+    Each pool creates: host pool, app group, workspace association, and N session host VMs.
+
+    LARGE DEPLOYMENT EXAMPLE:
+      avd_host_pools = {
+        general     = { session_host_count = 20, vm_size = "Standard_D4s_v5",  subnet_key = "avd-general", ... }
+        power-users = { session_host_count = 5,  vm_size = "Standard_D16s_v5", subnet_key = "avd-power",   ... }
+        personal    = { session_host_count = 10, vm_size = "Standard_D8s_v5",  subnet_key = "avd-personal", type = "Personal", load_balancer_type = "Persistent", ... }
+      }
+  EOT
+  type = map(object({
+    type                  = string
+    load_balancer_type    = string
+    max_sessions_per_host = optional(number, 12)
+    app_group_type        = optional(string, "Desktop")
+    start_vm_on_connect   = optional(bool, true)
+    friendly_name         = optional(string, null)
+    session_host_count    = number
+    vm_size               = string
+    vm_name_prefix        = string
+    subnet_key            = string
+    os_disk_type          = optional(string, "Premium_LRS")
+    image_publisher       = optional(string, "MicrosoftWindowsDesktop")
+    image_offer           = optional(string, "windows-11")
+    image_sku             = optional(string, "win11-23h2-avd")
+    aad_joined            = optional(bool, true)
+    intune_enrollment     = optional(bool, false)
+    admin_username        = string
+    admin_password        = string
+    enable_scaling_plan   = optional(bool, false)
+  }))
+  default   = {}
+  sensitive = true
+
+  validation {
+    condition     = alltrue([for k, v in var.avd_host_pools : contains(["Pooled", "Personal"], v.type)])
+    error_message = "avd_host_pools[*].type must be 'Pooled' or 'Personal'."
+  }
+  validation {
+    condition     = alltrue([for k, v in var.avd_host_pools : length(v.vm_name_prefix) <= 12])
+    error_message = "avd_host_pools[*].vm_name_prefix must be 12 characters or fewer."
+  }
+}
+
+variable "avd_scaling_plan_timezone" {
+  description = "Timezone for AVD scaling plan schedules (e.g., 'Eastern Standard Time', 'UTC')"
+  type        = string
+  default     = "UTC"
+}
+
+variable "avd_scaling_plan_peak_start_time" {
+  description = "Time when AVD peak hours begin (HH:MM 24-hour)"
+  type        = string
+  default     = "09:00"
+}
+
+variable "avd_scaling_plan_peak_end_time" {
+  description = "Time when AVD peak hours end / ramp-down begins (HH:MM 24-hour)"
+  type        = string
+  default     = "18:00"
+}
+
+# =====================================================
+# AZURE CONTAINER APPS VARIABLES (Optional)
+# Used when enable_aca = true
+# =====================================================
+
+variable "aca_internal_load_balancer" {
+  description = "Deploy the Container App Environment with an internal (private) load balancer. Requires an 'aca' subnet in var.subnets."
+  type        = bool
+  default     = false
+}
+
+variable "aca_log_retention_days" {
+  description = "Log Analytics retention in days for the ACA environment (30–730)"
+  type        = number
+  default     = 30
+}
+
+variable "acr_sku" {
+  description = "Azure Container Registry SKU: 'Basic', 'Standard', or 'Premium'"
+  type        = string
+  default     = "Standard"
+}
+
+variable "container_apps" {
+  description = <<-EOT
+    Map of container apps to deploy in the ACA environment.
+    Key is used as a name suffix (e.g., "api", "worker", "frontend").
+
+    EXAMPLE:
+      container_apps = {
+        frontend = { image = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest", cpu = 0.5, memory = "1Gi", ingress_external = true }
+        api      = { image = "myacr.azurecr.io/myapi:v1", cpu = 1.0, memory = "2Gi", ingress_external = false, min_replicas = 2, max_replicas = 20 }
+        worker   = { image = "myacr.azurecr.io/worker:v1", cpu = 2.0, memory = "4Gi", ingress_enabled = false }
+      }
+  EOT
+  type = map(object({
+    image                    = string
+    cpu                      = number
+    memory                   = string
+    min_replicas             = optional(number, 1)
+    max_replicas             = optional(number, 10)
+    revision_mode            = optional(string, "Single")
+    http_scale_rule_requests = optional(number, null)
+    env_vars                 = optional(map(string), {})
+    secret_env_vars          = optional(map(string), {})
+    ingress_enabled          = optional(bool, true)
+    ingress_external         = optional(bool, false)
+    ingress_target_port      = optional(number, 80)
+    ingress_transport        = optional(string, "auto")
+  }))
+  default = {}
 }
