@@ -4,10 +4,14 @@
 #
 # PREREQUISITES:
 #   1. Networking module must be enabled for VNet integration (optional but recommended)
-#   2. Add an ACA subnet in var.subnets if using internal_load_balancer_enabled = true
+#   2. Add an "aca" subnet in var.subnets if using aca_internal_load_balancer = true
+#      The subnet must have delegation = { name="aca-delegation", service="Microsoft.App/environments" }
 #   3. Set container_apps in terraform.tfvars
 #
-# ENABLE: set enable_aca = true in terraform.tfvars
+# TO ENABLE:
+#   1. Set enable_aca = true in terraform.tfvars
+#   2. Uncomment the module block below
+#   3. Uncomment the output blocks in outputs.tf
 
 # module "aca" {
 #   count  = var.enable_aca ? 1 : 0
@@ -19,8 +23,9 @@
 #   location_code       = var.location_code
 #   instance_number     = var.instance_number
 #
-#   # VNet integration — remove these two lines for a public (serverless) environment
-#   infrastructure_subnet_id       = var.enable_networking ? module.networking[0].subnet_ids["aca"] : null
+#   # VNet integration (private environment) — requires an "aca" subnet with delegation.
+#   # Remove / set to null for a public (serverless) environment.
+#   infrastructure_subnet_id       = var.enable_networking ? lookup(module.networking[0].subnet_ids, "aca", null) : null
 #   internal_load_balancer_enabled = var.aca_internal_load_balancer
 #
 #   # Container Registry — set to true to create an ACR and auto-wire AcrPull to all apps

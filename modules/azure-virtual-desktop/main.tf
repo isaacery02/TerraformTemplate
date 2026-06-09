@@ -56,9 +56,10 @@ resource "azurerm_virtual_desktop_host_pool" "pools" {
   location            = azurerm_resource_group.avd.location
   resource_group_name = azurerm_resource_group.avd.name
 
-  type                     = each.value.type
-  load_balancer_type       = each.value.load_balancer_type
-  maximum_sessions_allowed = each.value.max_sessions_per_host
+  type             = each.value.type
+  load_balancer_type = each.value.load_balancer_type
+  # Personal pools don't use session limits; 999999 is the Azure no-limit sentinel value.
+  maximum_sessions_allowed = each.value.type == "Personal" ? 999999 : each.value.max_sessions_per_host
   start_vm_on_connect      = each.value.start_vm_on_connect
   validate_environment     = false
   friendly_name            = coalesce(each.value.friendly_name, "${each.key} pool")
@@ -152,6 +153,10 @@ resource "azurerm_windows_virtual_machine" "session_hosts" {
     sku       = each.value.pool.image_sku
     version   = "latest"
   }
+
+  # Windows_Client enables Azure Hybrid Benefit for Windows 10/11 Enterprise AVD images.
+  # Set license_type = null to use standard (non-HB) pricing.
+  license_type = each.value.license_type
 
   identity {
     type = "SystemAssigned"

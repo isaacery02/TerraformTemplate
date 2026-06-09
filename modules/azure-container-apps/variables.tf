@@ -167,7 +167,11 @@ variable "container_apps" {
     # ── Environment variables ──────────────────────────────────────────────
     # env_vars: plain-text key/value pairs
     env_vars = optional(map(string), {})
-    # secret_env_vars: key = env var name, value = secret name defined in container_app_secrets
+    # secrets: key = secret name, value = secret value. Defined on the container app resource.
+    # WARNING: secret values are stored in Terraform state. Use Key Vault references in production.
+    # Example: secrets = { "db-password" = "supersecret" }
+    secrets = optional(map(string), {})
+    # secret_env_vars: key = env var name, value = secret name (must exist in secrets above)
     secret_env_vars = optional(map(string), {})
 
     # ── Ingress ───────────────────────────────────────────────────────────

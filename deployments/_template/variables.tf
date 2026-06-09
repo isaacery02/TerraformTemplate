@@ -182,6 +182,12 @@ variable "subnets" {
   type = map(object({
     address_prefix    = string
     service_endpoints = optional(list(string))
+    # Required for delegated subnets (e.g., ACA: service = "Microsoft.App/environments")
+    delegation = optional(object({
+      name    = string
+      service = string
+      actions = optional(list(string), [])
+    }))
   }))
   default = {
     gateway = {
@@ -317,6 +323,9 @@ variable "avd_host_pools" {
     admin_username        = string
     admin_password        = string
     enable_scaling_plan   = optional(bool, false)
+    # "Windows_Client" enables Azure Hybrid Benefit (~40% savings) for Win10/11 Enterprise images.
+    # Set to null for standard pricing. Use "Windows_Server" for Server SKU images.
+    license_type          = optional(string, "Windows_Client")
   }))
   default   = {}
   sensitive = true
@@ -393,6 +402,10 @@ variable "container_apps" {
     revision_mode            = optional(string, "Single")
     http_scale_rule_requests = optional(number, null)
     env_vars                 = optional(map(string), {})
+    # secrets: key = secret name, value = secret value. WARNING: stored in Terraform state.
+    # Use Key Vault references instead of plain values in production.
+    secrets                  = optional(map(string), {})
+    # secret_env_vars: key = env var name, value = a secret name defined in secrets above
     secret_env_vars          = optional(map(string), {})
     ingress_enabled          = optional(bool, true)
     ingress_external         = optional(bool, false)

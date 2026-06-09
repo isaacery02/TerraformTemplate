@@ -62,52 +62,45 @@ output "sql_databases" {
   sensitive = true  # Contains sensitive server info
 }
 
-# AVD Outputs
-output "avd_workspace_id" {
-  description = "AVD Workspace resource ID"
-  value       = var.enable_avd ? module.avd[0].workspace_id : null
-}
+# AVD Outputs — uncomment these alongside the module call in avd.tf
+# output "avd_workspace_id" {
+#   description = "AVD Workspace resource ID"
+#   value       = var.enable_avd ? module.avd[0].workspace_id : null
+# }
+# output "avd_workspace_name" {
+#   description = "AVD Workspace name"
+#   value       = var.enable_avd ? module.avd[0].workspace_name : null
+# }
+# output "avd_host_pool_ids" {
+#   description = "Map of AVD host pool keys to their resource IDs"
+#   value       = var.enable_avd ? module.avd[0].host_pool_ids : {}
+# }
+# output "avd_session_host_names" {
+#   description = "Map of session host keys to their VM names"
+#   value       = var.enable_avd ? module.avd[0].session_host_names : {}
+# }
+# output "avd_total_session_hosts" {
+#   description = "Total number of session host VMs deployed"
+#   value       = var.enable_avd ? module.avd[0].total_session_host_count : 0
+# }
 
-output "avd_workspace_name" {
-  description = "AVD Workspace name"
-  value       = var.enable_avd ? module.avd[0].workspace_name : null
-}
-
-output "avd_host_pool_ids" {
-  description = "Map of AVD host pool keys to their resource IDs"
-  value       = var.enable_avd ? module.avd[0].host_pool_ids : {}
-}
-
-output "avd_session_host_names" {
-  description = "Map of session host keys to their VM names"
-  value       = var.enable_avd ? module.avd[0].session_host_names : {}
-}
-
-output "avd_total_session_hosts" {
-  description = "Total number of session host VMs deployed"
-  value       = var.enable_avd ? module.avd[0].total_session_host_count : 0
-}
-
-# ACA Outputs
-output "aca_environment_id" {
-  description = "Container App Environment resource ID"
-  value       = var.enable_aca ? module.aca[0].environment_id : null
-}
-
-output "aca_environment_name" {
-  description = "Container App Environment name"
-  value       = var.enable_aca ? module.aca[0].environment_name : null
-}
-
-output "aca_container_app_urls" {
-  description = "Map of container app keys to their public FQDNs (ingress-enabled apps only)"
-  value       = var.enable_aca ? module.aca[0].container_app_urls : {}
-}
-
-output "aca_acr_login_server" {
-  description = "Azure Container Registry login server (null when enable_container_registry = false)"
-  value       = var.enable_aca ? module.aca[0].acr_login_server : null
-}
+# ACA Outputs — uncomment these alongside the module call in aca.tf
+# output "aca_environment_id" {
+#   description = "Container App Environment resource ID"
+#   value       = var.enable_aca ? module.aca[0].environment_id : null
+# }
+# output "aca_environment_name" {
+#   description = "Container App Environment name"
+#   value       = var.enable_aca ? module.aca[0].environment_name : null
+# }
+# output "aca_container_app_urls" {
+#   description = "Map of container app keys to their public FQDNs (ingress-enabled apps only)"
+#   value       = var.enable_aca ? module.aca[0].container_app_urls : {}
+# }
+# output "aca_acr_login_server" {
+#   description = "Azure Container Registry login server (null when enable_container_registry = false)"
+#   value       = var.enable_aca ? module.aca[0].acr_login_server : null
+# }
 
 # Deployment Info
 output "deployment_info" {

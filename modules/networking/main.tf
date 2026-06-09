@@ -30,13 +30,17 @@ resource "azurerm_subnet" "subnets" {
   name                 = "snet-${each.key}-${var.customer_short_name}-${var.environment}-${var.location_code}-${format("%03d", var.instance_number)}"
   resource_group_name  = azurerm_resource_group.network.name
   virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = [each.value.address_prefix]
+  address_prefixes  = [each.value.address_prefix]
+  service_endpoints = each.value.service_endpoints
 
-  # Enable service endpoints if specified
-  dynamic "service_endpoints" {
-    for_each = lookup(each.value, "service_endpoints", null) != null ? [1] : []
+  dynamic "delegation" {
+    for_each = each.value.delegation != null ? [each.value.delegation] : []
     content {
-      service = each.value.service_endpoints
+      name = delegation.value.name
+      service_delegation {
+        name    = delegation.value.service
+        actions = delegation.value.actions
+      }
     }
   }
 }

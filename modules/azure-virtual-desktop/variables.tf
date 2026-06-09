@@ -127,6 +127,11 @@ variable "host_pools" {
     admin_username = string
     admin_password = string
 
+    # ── Licensing ─────────────────────────────────────────────────────────
+    # "Windows_Client" enables Azure Hybrid Benefit for Windows 10/11 Enterprise images (saves ~40%).
+    # Set to null to use standard pricing. "Windows_Server" is for Windows Server images.
+    license_type = optional(string, "Windows_Client")
+
     # ── Scaling plan (Pooled pools only) ───────────────────────────────────
     # Automatically starts/stops hosts based on session demand
     enable_scaling_plan = optional(bool, false)

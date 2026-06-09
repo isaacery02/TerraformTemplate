@@ -42,6 +42,13 @@ variable "subnets" {
   type = map(object({
     address_prefix    = string
     service_endpoints = optional(list(string))
+    # delegation: required for subnets used by ACA (service = "Microsoft.App/environments"),
+    # App Service VNet integration, and other delegated services.
+    delegation = optional(object({
+      name    = string            # arbitrary label, e.g. "aca-delegation"
+      service = string            # e.g. "Microsoft.App/environments"
+      actions = optional(list(string), [])
+    }))
   }))
 }
 

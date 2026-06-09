@@ -79,6 +79,15 @@ resource "azurerm_container_app" "apps" {
   revision_mode                = each.value.revision_mode
   tags                         = var.tags
 
+  # Secrets defined here can be referenced by name in secret_env_vars.
+  dynamic "secret" {
+    for_each = each.value.secrets
+    content {
+      name  = secret.key
+      value = secret.value
+    }
+  }
+
   # SystemAssigned identity enables managed auth to ACR (no username/password needed)
   identity {
     type = "SystemAssigned"
