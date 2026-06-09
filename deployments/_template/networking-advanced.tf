@@ -1,114 +1,89 @@
 # Advanced Networking
-# Front Door, Load Balancers, Application Gateway, VPN, Firewall
-# Typically used for production multi-region or high-availability setups
+# Front Door is defined in landing-zone.tf (Landing Zone subscription).
+# The resources below are optional and use the provider noted in each block.
 
 # =====================================================
-# FRONT DOOR + WAF (Optional)
-# Global HTTP/S load balancer with CDN and WAF.
-# Does NOT require networking module — Front Door reaches origins over the internet.
-#
-# TO ENABLE:
-#   1. Set enable_front_door = true in terraform.tfvars
-#   2. Configure front_door_origin_groups, front_door_routes in terraform.tfvars
-#   3. Uncomment the module block below
-#   4. Uncomment the output blocks in outputs.tf
-# =====================================================
-
-# module "front_door" {
-#   count  = var.enable_front_door ? 1 : 0
-#   source = "../../modules/front-door"
-#
-#   customer_short_name = var.customer_short_name
-#   environment         = var.environment
-#   location            = var.location
-#   instance_number     = var.instance_number
-#
-#   sku_name                 = var.front_door_sku_name
-#   response_timeout_seconds = var.front_door_response_timeout_seconds
-#
-#   endpoints     = var.front_door_endpoints
-#   origin_groups = var.front_door_origin_groups
-#   routes        = var.front_door_routes
-#
-#   enable_waf            = var.enable_waf
-#   waf_mode              = var.waf_mode
-#   waf_managed_rule_sets = var.waf_managed_rule_sets
-#   waf_custom_rules      = var.waf_custom_rules
-#
-#   tags = var.tags
-# }
-
-# =====================================================
-# LOAD BALANCER (Optional)
+# LOAD BALANCER (Compute subscription)
+# Internal or public L4 load balancer for VMs in the spoke VNet.
 # =====================================================
 # module "load_balancer" {
 #   count  = var.enable_load_balancer ? 1 : 0
 #   source = "../../modules/load-balancer"
-#   
+#   providers = { azurerm = azurerm.compute }
+#
 #   customer_short_name = var.customer_short_name
 #   environment         = var.environment
 #   location            = var.location
 #   location_code       = var.location_code
 #   instance_number     = var.instance_number
-#   
-#   resource_group_name = module.networking[0].resource_group_name
-#   
+#
+#   resource_group_name = module.spoke_networking[0].resource_group_name
+#
 #   tags = var.tags
 # }
 
 # =====================================================
-# APPLICATION GATEWAY (Optional)
+# APPLICATION GATEWAY (Compute subscription)
+# L7 load balancer / WAF for VNet-internal workloads.
+# Front Door is preferred for public-facing SaaS workloads.
 # =====================================================
 # module "application_gateway" {
 #   count  = var.enable_application_gateway ? 1 : 0
 #   source = "../../modules/application-gateway"
-#   
+#   providers = { azurerm = azurerm.compute }
+#
 #   customer_short_name = var.customer_short_name
 #   environment         = var.environment
 #   location            = var.location
 #   location_code       = var.location_code
 #   instance_number     = var.instance_number
-#   
-#   resource_group_name = module.networking[0].resource_group_name
-#   subnet_id           = module.networking[0].subnet_ids["gateway"]
-#   
+#
+#   resource_group_name = module.spoke_networking[0].resource_group_name
+#   subnet_id           = module.spoke_networking[0].subnet_ids["gateway"]
+#
 #   tags = var.tags
 # }
 
 # =====================================================
-# VPN GATEWAY (Optional)
+# VPN GATEWAY (Landing Zone subscription)
+# Site-to-site or P2S VPN in the hub VNet.
+# Requires GatewaySubnet in var.hub_subnets.
 # =====================================================
 # module "vpn_gateway" {
 #   count  = var.enable_vpn_gateway ? 1 : 0
 #   source = "../../modules/vpn-gateway"
-#   
+#   # No providers = {} — uses default provider (Landing Zone subscription)
+#
 #   customer_short_name = var.customer_short_name
 #   environment         = var.environment
 #   location            = var.location
 #   location_code       = var.location_code
 #   instance_number     = var.instance_number
-#   
-#   resource_group_name = module.networking[0].resource_group_name
-#   subnet_id           = module.networking[0].subnet_ids["gateway"]
-#   
+#
+#   resource_group_name = module.hub_networking[0].resource_group_name
+#   subnet_id           = module.hub_networking[0].subnet_ids["GatewaySubnet"]
+#
 #   tags = var.tags
 # }
 
 # =====================================================
-# AZURE FIREWALL (Optional)
+# AZURE FIREWALL (Landing Zone subscription)
+# Central egress/inspection point in the hub VNet.
+# Requires AzureFirewallSubnet (name = "AzureFirewallSubnet") in var.hub_subnets.
 # =====================================================
 # module "azure_firewall" {
 #   count  = var.enable_azure_firewall ? 1 : 0
 #   source = "../../modules/azure-firewall"
-#   
+#   # No providers = {} — uses default provider (Landing Zone subscription)
+#
 #   customer_short_name = var.customer_short_name
 #   environment         = var.environment
 #   location            = var.location
 #   location_code       = var.location_code
 #   instance_number     = var.instance_number
-#   
-#   resource_group_name = module.networking[0].resource_group_name
-#   subnet_id           = module.networking[0].subnet_ids["gateway"]
-#   
+#
+#   resource_group_name = module.hub_networking[0].resource_group_name
+#   subnet_id           = module.hub_networking[0].subnet_ids["AzureFirewallSubnet"]
+#
 #   tags = var.tags
 # }

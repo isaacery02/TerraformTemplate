@@ -41,6 +41,12 @@ variable "subnets" {
   description = "Map of subnets to create with their address prefixes"
   type = map(object({
     address_prefix    = string
+    # name: override the generated subnet name. Required for Azure-reserved names:
+    #   "GatewaySubnet"        — VPN/ExpressRoute gateway (must be exactly this name)
+    #   "AzureFirewallSubnet"  — Azure Firewall (must be exactly this name)
+    #   "AzureBastionSubnet"   — Azure Bastion (must be exactly this name)
+    # When omitted, the name is generated as "snet-{key}-{customer}-{env}-{region}-{instance}".
+    name              = optional(string, null)
     service_endpoints = optional(list(string))
     # delegation: required for subnets used by ACA (service = "Microsoft.App/environments"),
     # App Service VNet integration, and other delegated services.

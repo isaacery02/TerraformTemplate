@@ -11,8 +11,15 @@ customer_short_name = "contoso"        # 3-8 lowercase letters
 environment         = "prod"           # prod, dev, staging, uat, test
 location            = "eastus"         # Azure region
 location_code       = "eus"            # Short region code
-subscription_id     = "00000000-0000-0000-0000-000000000000"  # Your subscription ID
 instance_number     = 1                # Instance number (typically 1)
+
+# =====================================================
+# SUBSCRIPTIONS
+# Two Azure subscriptions — must be in the same Azure AD tenant.
+# The Terraform identity needs Contributor on both subscriptions.
+# =====================================================
+landing_zone_subscription_id = "00000000-0000-0000-0000-000000000001"  # LZ sub: hub, shared KV, Log Analytics, Front Door
+compute_subscription_id      = "00000000-0000-0000-0000-000000000002"  # Compute sub: ACA, AVD, databases, storage
 
 # =====================================================
 # TAGS
@@ -26,43 +33,38 @@ tags = {
 
 # =====================================================
 # MODULE CONTROL FLAGS
-# Enable/disable modules as needed for this deployment
 # =====================================================
-enable_networking = true  # Always true for new customers
+# ── Landing Zone (landing_zone_subscription_id) ──────
+enable_hub_networking    = true   # Hub VNet in LZ subscription
+enable_shared_key_vault  = false  # Shared KV for platform secrets (AVD creds, certs)
+enable_shared_monitoring = false  # Centralised Log Analytics workspace
+
+# ── Compute (compute_subscription_id) ────────────────
+enable_spoke_networking = true  # Spoke VNet in Compute subscription
 
 # =====================================================
-# STORAGE ACCOUNTS (Multiple Named Instances)
-# Create multiple storage accounts for different purposes
-# Each key becomes part of the resource name suffix
+# STORAGE ACCOUNTS (Compute subscription)
 # =====================================================
 storage_accounts = {
   data = {
-    tier              = "Standard"
-    replication_type  = "LRS"
-    blob_containers   = ["uploads", "processed", "archive"]
+    tier             = "Standard"
+    replication_type = "LRS"
+    blob_containers  = ["uploads", "processed", "archive"]
   }
   logs = {
-    tier              = "Standard"
-    replication_type  = "LRS"
-    blob_containers   = ["app-logs", "audit-logs", "diagnostics"]
+    tier             = "Standard"
+    replication_type = "LRS"
+    blob_containers  = ["app-logs", "audit-logs", "diagnostics"]
   }
   backups = {
-    tier              = "Standard"
-    replication_type  = "GRS"  # Geo-redundant for backups
-    blob_containers   = ["sql-backups", "vm-snapshots"]
+    tier             = "Standard"
+    replication_type = "GRS"  # Geo-redundant for backups
+    blob_containers  = ["sql-backups", "vm-snapshots"]
   }
-  # Add more as needed - up to 10 or more storage accounts
-  # appX = {
-  #   tier              = "Standard"
-  #   replication_type  = "ZRS"
-  #   blob_containers   = ["app-data"]
-  # }
 }
 
 # =====================================================
-# KEY VAULTS (Multiple Named Instances)
-# Create multiple Key Vaults for different purposes
-# Each key becomes part of the resource name suffix
+# KEY VAULTS (Compute subscription)
 # =====================================================
 key_vaults = {
   secrets = {
@@ -73,17 +75,10 @@ key_vaults = {
     sku_name    = "premium"  # Premium for HSM-backed certificates
     enable_rbac = true
   }
-  # Add more as needed - separate vaults per application
-  # appX = {
-  #   sku_name    = "standard"
-  #   enable_rbac = true
-  # }
 }
 
 # =====================================================
-# SQL DATABASES (Multiple Named Instances)
-# Create multiple SQL Servers and Databases
-# Each key becomes part of the resource name suffix
+# SQL DATABASES (Compute subscription)
 # =====================================================
 sql_databases = {
   orders = {
@@ -96,35 +91,59 @@ sql_databases = {
   }
   inventory = {
     admin_username = "sqladmin"
-    admin_password = "ChangeMe123!SecurePassword"  # Use Key Vault reference in production
+    admin_password = "ChangeMe123!SecurePassword"
     database_name  = "InventoryDB"
     sku_name       = "S2"
     max_size_gb    = 500
     zone_redundant = true
   }
-  # Add more databases as needed
 }
 
 # =====================================================
-# OPTIONAL MODULES
+# OPTIONAL MODULE FLAGS
 # =====================================================
 enable_virtual_machine    = false
 enable_app_service        = false
-enable_front_door         = false   # Azure Front Door + WAF
+enable_front_door         = false   # Azure Front Door + WAF (LZ subscription)
 enable_redis_cache        = false
-enable_avd                = false   # Azure Virtual Desktop
-enable_aca                = false   # Azure Container Apps
+enable_avd                = false   # Azure Virtual Desktop (Compute subscription)
+enable_aca                = false   # Azure Container Apps (Compute subscription)
 enable_container_registry = false   # Azure Container Registry (for ACA)
-enable_waf                = true    # WAF on Front Door (only applies when enable_front_door = true)
+enable_waf                = true    # WAF on Front Door (only when enable_front_door = true)
 
 # =====================================================
-# NETWORKING CONFIGURATION
+# HUB NETWORKING (Landing Zone subscription)
 # Customize address spaces and subnets as needed.
-# Add avd-* and/or aca subnets when those modules are enabled.
+# GatewaySubnet and AzureFirewallSubnet skip NSG attachment automatically.
 # =====================================================
-vnet_address_space = ["10.0.0.0/16"]
+hub_vnet_address_space = ["10.100.0.0/16"]
 
-subnets = {
+hub_subnets = {
+  GatewaySubnet = {
+    address_prefix = "10.100.0.0/27"  # /27 minimum for VPN/ER gateway
+    name           = "GatewaySubnet"   # Azure requires this exact name
+  }
+  management = {
+    address_prefix = "10.100.1.0/24"
+  }
+  # ── Add AzureFirewallSubnet when enabling Azure Firewall ──
+  # AzureFirewallSubnet = {
+  #   address_prefix = "10.100.2.0/26"   # /26 minimum for Azure Firewall
+  #   name           = "AzureFirewallSubnet"
+  # }
+  # ── Add AzureBastionSubnet when enabling Azure Bastion ──
+  # AzureBastionSubnet = {
+  #   address_prefix = "10.100.3.0/26"
+  #   name           = "AzureBastionSubnet"
+  # }
+}
+
+# =====================================================
+# SPOKE NETWORKING (Compute subscription)
+# =====================================================
+spoke_vnet_address_space = ["10.0.0.0/16"]
+
+spoke_subnets = {
   gateway = {
     address_prefix = "10.0.0.0/24"
   }
@@ -153,13 +172,18 @@ subnets = {
   # ── Add this subnet when enable_aca = true with VNet integration ──
   # aca = {
   #   address_prefix = "10.0.20.0/23"   # /23 minimum for ACA; must have Microsoft.App/environments delegation
+  #   delegation = {
+  #     name    = "aca-delegation"
+  #     service = "Microsoft.App/environments"
+  #     actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+  #   }
   # }
 }
 
 # =====================================================
 # VIRTUAL MACHINE CONFIGURATION (if enabled)
 # =====================================================
-# vm_size          = "Standard_D2s_v3"
+# vm_size           = "Standard_D2s_v3"
 # vm_admin_username = "azureadmin"
 
 # =====================================================
@@ -169,27 +193,28 @@ subnets = {
 
 # =====================================================
 # FRONT DOOR + WAF CONFIGURATION (if enable_front_door = true)
+# Deploys to Landing Zone subscription.
 #
 # QUICK START: fill in host_name values for your backends and apply.
 # MULTI-REGION: add secondary origins with priority = 2 for failover.
 # ACA BACKENDS: use module.aca[0].container_app_urls["app-key"] for host_name.
 # =====================================================
-# front_door_sku_name              = "Premium_AzureFrontDoor"  # Premium required for WAF managed rules
+# front_door_sku_name                 = "Premium_AzureFrontDoor"
 # front_door_response_timeout_seconds = 120
 # waf_mode = "Detection"   # Start with Detection, switch to Prevention after tuning
 #
 # front_door_origin_groups = {
-#   # ── SINGLE BACKEND: one origin group, one origin ─────────────────────
+#   # ── SINGLE BACKEND ────────────────────────────────────────────────────────
 #   app = {
 #     health_probe_path = "/health"
 #     origins = {
 #       primary = {
-#         host_name = "myapp.azurewebsites.net"   # replace with your backend hostname
+#         host_name = "myapp.azurewebsites.net"
 #       }
 #     }
 #   }
 #
-#   # ── MULTI-COMPONENT: separate groups for frontend + API ───────────────
+#   # ── MULTI-COMPONENT: separate origin groups for frontend + API ─────────────
 #   # frontend = {
 #   #   origins = {
 #   #     primary = { host_name = "ca-contoso-prod-eus-001-frontend.happyforest-12345.eastus.azurecontainerapps.io" }
@@ -202,26 +227,24 @@ subnets = {
 #   #   }
 #   # }
 #
-#   # ── MULTI-REGION ACTIVE/ACTIVE with failover ──────────────────────────
+#   # ── MULTI-REGION ACTIVE/ACTIVE with failover ───────────────────────────────
 #   # app = {
 #   #   origins = {
-#   #     eastus  = { host_name = "myapp-eus.azurewebsites.net", priority = 1, weight = 1000 }
-#   #     westus  = { host_name = "myapp-wus.azurewebsites.net", priority = 1, weight = 1000 }
+#   #     eastus   = { host_name = "myapp-eus.azurewebsites.net", priority = 1, weight = 1000 }
+#   #     westus   = { host_name = "myapp-wus.azurewebsites.net", priority = 1, weight = 1000 }
 #   #     failover = { host_name = "myapp-neu.azurewebsites.net", priority = 2, weight = 500 }
 #   #   }
 #   # }
 # }
 #
 # front_door_routes = {
-#   # Route all traffic to the "app" origin group
 #   default-route = {
 #     endpoint_key     = "default"
 #     origin_group_key = "app"
 #     patterns_to_match = ["/*"]
 #     https_redirect    = true
 #   }
-#
-#   # ── SPLIT ROUTING: API and frontend to separate origin groups ─────────
+#   # ── SPLIT ROUTING ─────────────────────────────────────────────────────────
 #   # api-route = {
 #   #   endpoint_key     = "default"
 #   #   origin_group_key = "api"
@@ -235,74 +258,70 @@ subnets = {
 #   # }
 # }
 #
-# # ── WAF CUSTOM RULES (optional) ───────────────────────────────────────────
-# # waf_custom_rules = {
-# #   RateLimit = {
-# #     priority                       = 100
-# #     rule_type                      = "RateLimitRule"
-# #     action                         = "Block"
-# #     rate_limit_threshold           = 1000
-# #     rate_limit_duration_in_minutes = 1
-# #     match_conditions = [{ match_variable = "RemoteAddr", operator = "IPMatch", match_values = ["0.0.0.0/0"] }]
-# #   }
-# #   GeoBlock = {
-# #     priority  = 200
-# #     rule_type = "MatchRule"
-# #     action    = "Block"
-# #     match_conditions = [{ match_variable = "RemoteAddr", operator = "GeoMatch", match_values = ["CN", "RU", "KP"] }]
-# #   }
-# # }
+# waf_custom_rules = {
+#   RateLimit = {
+#     priority                       = 100
+#     rule_type                      = "RateLimitRule"
+#     action                         = "Block"
+#     rate_limit_threshold           = 1000
+#     rate_limit_duration_in_minutes = 1
+#     match_conditions = [{ match_variable = "RemoteAddr", operator = "IPMatch", match_values = ["0.0.0.0/0"] }]
+#   }
+#   GeoBlock = {
+#     priority  = 200
+#     rule_type = "MatchRule"
+#     action    = "Block"
+#     match_conditions = [{ match_variable = "RemoteAddr", operator = "GeoMatch", match_values = ["CN", "RU", "KP"] }]
+#   }
+# }
 
 # =====================================================
 # REDIS CACHE CONFIGURATION (if enabled)
 # =====================================================
 # redis_capacity = 1
-# redis_family   = "C"         # C for Basic/Standard, P for Premium
-# redis_sku_name = "Standard"  # Basic, Standard, Premium
+# redis_family   = "C"
+# redis_sku_name = "Standard"
 
 # =====================================================
 # AZURE VIRTUAL DESKTOP CONFIGURATION (if enable_avd = true)
+# Deployed to Compute subscription.
 #
-# QUICK START: copy the "general" pool block, set values, apply.
-# LARGE DEPLOYMENT: add more pool entries with different vm_sizes.
-#
-# subnet_key must match a key in the subnets map above.
-# vm_name_prefix must be ≤12 chars (3-digit suffix is appended → max 15 total).
+# subnet_key must match a key in spoke_subnets above.
+# vm_name_prefix must be ≤12 chars (3-digit suffix appended → max 15 total).
 # =====================================================
-# avd_workspace_friendly_name = "Contoso Virtual Desktop"
-# avd_scaling_plan_timezone   = "Eastern Standard Time"
+# avd_workspace_friendly_name      = "Contoso Virtual Desktop"
+# avd_scaling_plan_timezone        = "Eastern Standard Time"
 # avd_scaling_plan_peak_start_time = "08:00"
 # avd_scaling_plan_peak_end_time   = "18:00"
 #
 # avd_host_pools = {
-#   # ── SMALL / STARTER: single Pooled pool ────────────────────────────────
+#   # ── SMALL / STARTER: single Pooled pool ────────────────────────────────────
 #   general = {
 #     type                  = "Pooled"
 #     load_balancer_type    = "BreadthFirst"
 #     max_sessions_per_host = 10
 #     session_host_count    = 5
 #     vm_size               = "Standard_D4s_v5"
-#     vm_name_prefix        = "avdgen"        # → avdgen001 … avdgen005
+#     vm_name_prefix        = "avdgen"         # → avdgen001 … avdgen005
 #     subnet_key            = "avd-general"
-#     # Marketplace image (default) — OR use source_image_id below for a golden image
 #     image_offer           = "windows-11"
 #     image_sku             = "win11-23h2-avd"
-#     # Golden image from Azure Compute Gallery (leave commented to use marketplace image above):
+#     # Golden image from Azure Compute Gallery (overrides marketplace image above):
 #     # source_image_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-images/providers/Microsoft.Compute/galleries/MyGallery/images/AVDGolden/versions/latest"
-#     aad_joined            = true
-#     admin_username        = "avdadmin"
-#     admin_password        = "ChangeMe123!"  # store in Key Vault in production
-#     enable_scaling_plan   = false
+#     aad_joined          = true
+#     admin_username      = "avdadmin"
+#     admin_password      = "ChangeMe123!"   # store in shared Key Vault in production
+#     enable_scaling_plan = false
 #   }
 #
-#   # ── LARGE: add more pools for different user personas ──────────────────
+#   # ── LARGE: add more pools for different user personas ──────────────────────
 #   # powerusers = {
 #   #   type                  = "Pooled"
 #   #   load_balancer_type    = "DepthFirst"
 #   #   max_sessions_per_host = 4
 #   #   session_host_count    = 10
 #   #   vm_size               = "Standard_D16s_v5"
-#   #   vm_name_prefix        = "avdpwr"        # → avdpwr001 … avdpwr010
+#   #   vm_name_prefix        = "avdpwr"
 #   #   subnet_key            = "avd-power"
 #   #   admin_username        = "avdadmin"
 #   #   admin_password        = "ChangeMe123!"
@@ -311,10 +330,10 @@ subnets = {
 #   #
 #   # personal = {
 #   #   type               = "Personal"
-#   #   load_balancer_type = "Persistent"      # must be Persistent for Personal pools
+#   #   load_balancer_type = "Persistent"
 #   #   session_host_count = 5
 #   #   vm_size            = "Standard_D8s_v5"
-#   #   vm_name_prefix     = "avdprs"          # → avdprs001 … avdprs005
+#   #   vm_name_prefix     = "avdprs"
 #   #   subnet_key         = "avd-personal"
 #   #   admin_username     = "avdadmin"
 #   #   admin_password     = "ChangeMe123!"
@@ -323,17 +342,18 @@ subnets = {
 
 # =====================================================
 # AZURE CONTAINER APPS CONFIGURATION (if enable_aca = true)
+# Deployed to Compute subscription.
 #
 # QUICK START: define one app entry in container_apps.
 # PRODUCTION: set enable_container_registry = true and push images to the ACR output.
-# PRIVATE ENV: set aca_internal_load_balancer = true and add an "aca" subnet.
+# PRIVATE ENV: set aca_internal_load_balancer = true and add an "aca" subnet in spoke_subnets.
 # =====================================================
 # aca_internal_load_balancer = false
 # aca_log_retention_days     = 30
 # acr_sku                    = "Standard"
 #
 # container_apps = {
-#   # ── SIMPLE: single public-facing app ────────────────────────────────────
+#   # ── SIMPLE: single public-facing app ────────────────────────────────────────
 #   frontend = {
 #     image               = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
 #     cpu                 = 0.5
@@ -345,18 +365,17 @@ subnets = {
 #     http_scale_rule_requests = 50
 #   }
 #
-#   # ── PRODUCTION PATTERN: internal API + background worker ────────────────
+#   # ── PRODUCTION: internal API + background worker ─────────────────────────────
 #   # api = {
 #   #   image               = "myacr.azurecr.io/myapi:v1.0"  # requires enable_container_registry = true
 #   #   cpu                 = 1.0
 #   #   memory              = "2Gi"
 #   #   min_replicas        = 2
 #   #   max_replicas        = 30
-#   #   ingress_external    = false               # internal only
+#   #   ingress_external    = false
 #   #   ingress_target_port = 8080
 #   #   env_vars = {
 #   #     ASPNETCORE_ENVIRONMENT = "Production"
-#   #     APPLICATIONINSIGHTS_CONNECTION_STRING = "InstrumentationKey=..."
 #   #   }
 #   #   http_scale_rule_requests = 100
 #   # }
@@ -367,9 +386,6 @@ subnets = {
 #   #   memory          = "4Gi"
 #   #   min_replicas    = 1
 #   #   max_replicas    = 10
-#   #   ingress_enabled = false                   # no HTTP endpoint for workers
-#   #   env_vars = {
-#   #     QUEUE_CONNECTION = "..."
-#   #   }
+#   #   ingress_enabled = false
 #   # }
 # }

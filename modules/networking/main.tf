@@ -2,9 +2,19 @@
 
 locals {
   vnet_name = "vnet-${var.customer_short_name}-${var.environment}-${var.location_code}-${format("%03d", var.instance_number)}"
-  
-  # Resource group for all networking resources
-  rg_name = "rg-network-${var.customer_short_name}-${var.environment}-${var.location_code}"
+  rg_name   = "rg-network-${var.customer_short_name}-${var.environment}-${var.location_code}"
+
+  # Azure-reserved subnet names that prohibit NSG attachment.
+  # GatewaySubnet: VPN/ExpressRoute gateway.
+  # AzureFirewallSubnet: Azure Firewall manages its own rules.
+  no_nsg_names = toset(["GatewaySubnet", "AzureFirewallSubnet"])
+
+  # Subnets that receive an NSG — filters out Azure-reserved names using the override
+  # name (if set) or the map key as a fallback.
+  nsg_subnets = {
+    for k, v in var.subnets : k => v
+    if !contains(local.no_nsg_names, coalesce(v.name, k))
+  }
 }
 
 # Resource Group
@@ -27,11 +37,12 @@ resource "azurerm_virtual_network" "vnet" {
 resource "azurerm_subnet" "subnets" {
   for_each = var.subnets
 
-  name                 = "snet-${each.key}-${var.customer_short_name}-${var.environment}-${var.location_code}-${format("%03d", var.instance_number)}"
+  # Use the override name when provided (e.g., "GatewaySubnet"); otherwise generate a standard name.
+  name                 = coalesce(each.value.name, "snet-${each.key}-${var.customer_short_name}-${var.environment}-${var.location_code}-${format("%03d", var.instance_number)}")
   resource_group_name  = azurerm_resource_group.network.name
   virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes  = [each.value.address_prefix]
-  service_endpoints = each.value.service_endpoints
+  address_prefixes     = [each.value.address_prefix]
+  service_endpoints    = each.value.service_endpoints
 
   dynamic "delegation" {
     for_each = each.value.delegation != null ? [each.value.delegation] : []
@@ -45,16 +56,15 @@ resource "azurerm_subnet" "subnets" {
   }
 }
 
-# Network Security Groups (one per subnet)
+# Network Security Groups (one per subnet, excluding Azure-reserved subnets)
 resource "azurerm_network_security_group" "nsg" {
-  for_each = var.subnets
+  for_each = local.nsg_subnets
 
   name                = "nsg-${each.key}-${var.customer_short_name}-${var.environment}-${var.location_code}-${format("%03d", var.instance_number)}"
   location            = azurerm_resource_group.network.location
   resource_group_name = azurerm_resource_group.network.name
   tags                = var.tags
 
-  # Default deny all inbound rule (best practice - explicit rules should be added per customer)
   security_rule {
     name                       = "DenyAllInbound"
     priority                   = 4096
@@ -68,9 +78,9 @@ resource "azurerm_network_security_group" "nsg" {
   }
 }
 
-# Associate NSGs with Subnets
+# Associate NSGs with Subnets (only non-reserved subnets)
 resource "azurerm_subnet_network_security_group_association" "nsg_association" {
-  for_each = var.subnets
+  for_each = local.nsg_subnets
 
   subnet_id                 = azurerm_subnet.subnets[each.key].id
   network_security_group_id = azurerm_network_security_group.nsg[each.key].id

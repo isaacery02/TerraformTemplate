@@ -110,32 +110,54 @@ Each deployment folder must contain:
 
 ### 3. Core Variables (Always Required)
 ```hcl
-customer_short_name = "contoso"    # 3-8 characters, lowercase
-environment         = "prod"        # prod, dev, staging
-location            = "eastus"      # Azure region
-location_code       = "eus"         # Short region code
-subscription_id     = "xxxxx"       # Azure subscription ID
+customer_short_name          = "contoso"   # 3-8 characters, lowercase
+environment                  = "prod"       # prod, dev, staging, uat, test
+location                     = "eastus"     # Azure region
+location_code                = "eus"        # Short region code
+landing_zone_subscription_id = "xxxxx"      # LZ subscription: hub VNet, Log Analytics, Front Door
+compute_subscription_id      = "yyyyy"      # Compute subscription: ACA, AVD, databases, storage
 ```
+
+### 3a. Two-Subscription Architecture
+This template deploys across **two Azure subscriptions**:
+
+| Subscription | Variable | What lives here |
+|---|---|---|
+| Landing Zone | `landing_zone_subscription_id` | Hub VNet, shared Key Vault, Log Analytics, Front Door + WAF |
+| Compute | `compute_subscription_id` | Spoke VNet, ACA, AVD, App Service, databases, storage, customer Key Vaults |
+
+Both subscriptions must be in the same **Azure AD tenant**. The Terraform identity (service principal or managed identity) needs `Contributor` on both. Provider aliases in `providers.tf` handle the cross-subscription deployment — no module changes needed.
 
 ### 4. Module Control Variables (Boolean Flags)
 ```hcl
-enable_networking         = true   # Always true for new customers
-enable_storage_account    = true   # Almost always true
-enable_key_vault          = true   # Almost always true
+# Landing Zone subscription
+enable_hub_networking    = true   # Hub VNet (always recommended)
+enable_shared_key_vault  = false  # Shared KV for platform secrets
+enable_shared_monitoring = false  # Centralised Log Analytics workspace
+enable_front_door        = false  # Global Front Door + WAF
+
+# Compute subscription
+enable_spoke_networking   = true   # Spoke VNet (always recommended)
 enable_virtual_machine    = false  # Enable as needed
 enable_app_service        = false  # Enable as needed
-enable_front_door         = false  # Enable as needed
 enable_redis_cache        = false  # Enable as needed
-enable_avd                = false  # Azure Virtual Desktop — set true for AVD deployments
-enable_aca                = false  # Azure Container Apps — set true for containerised workloads
-enable_container_registry = false  # Azure Container Registry — set true alongside enable_aca
+enable_avd                = false  # Azure Virtual Desktop
+enable_aca                = false  # Azure Container Apps
+enable_container_registry = false  # Azure Container Registry (alongside enable_aca)
 ```
 
-### 5. Networking Variables (Core Infrastructure)
+### 5. Networking Variables (Hub + Spoke)
 ```hcl
-vnet_address_space = ["10.0.0.0/16"]
+# Hub VNet (Landing Zone subscription)
+hub_vnet_address_space = ["10.100.0.0/16"]
+hub_subnets = {
+  GatewaySubnet = { address_prefix = "10.100.0.0/27", name = "GatewaySubnet" }
+  management    = { address_prefix = "10.100.1.0/24" }
+}
 
-subnets = {
+# Spoke VNet (Compute subscription)
+spoke_vnet_address_space = ["10.0.0.0/16"]
+spoke_subnets = {
   gateway    = { address_prefix = "10.0.0.0/24" }
   appservice = { address_prefix = "10.0.1.0/24" }
   vms        = { address_prefix = "10.0.2.0/24" }
@@ -158,18 +180,46 @@ module-name/
 ```
 
 ### Calling Modules from Deployment
+Modules that deploy to the **Compute subscription** receive `providers = { azurerm = azurerm.compute }`.
+Modules that deploy to the **Landing Zone subscription** omit `providers` (they use the default provider).
+
 ```hcl
-module "networking" {
+# Hub networking — Landing Zone subscription (default provider)
+module "hub_networking" {
+  count  = var.enable_hub_networking ? 1 : 0
   source = "../../modules/networking"
-  
-  customer_short_name = var.customer_short_name
-  environment         = var.environment
-  location            = var.location
-  location_code       = var.location_code
-  
-  vnet_address_space = var.vnet_address_space
-  subnets            = var.subnets
-  tags               = var.tags
+
+  vnet_address_space = var.hub_vnet_address_space
+  subnets            = var.hub_subnets
+  tags               = merge(var.tags, { NetworkTier = "Hub" })
+  # ...
+}
+
+# Spoke networking — Compute subscription (explicit provider alias)
+module "spoke_networking" {
+  count  = var.enable_spoke_networking ? 1 : 0
+  source = "../../modules/networking"
+  providers = { azurerm = azurerm.compute }
+
+  vnet_address_space = var.spoke_vnet_address_space
+  subnets            = var.spoke_subnets
+  tags               = merge(var.tags, { NetworkTier = "Spoke" })
+  # ...
+}
+```
+
+### Special Subnet Names
+The networking module now supports a `name` override for Azure-reserved subnet names:
+- `GatewaySubnet` — must be exactly this name for VPN/ER gateway (NSG skipped automatically)
+- `AzureFirewallSubnet` — must be exactly this name for Azure Firewall (NSG skipped automatically)
+- `AzureBastionSubnet` — must be exactly this name for Azure Bastion
+
+```hcl
+hub_subnets = {
+  GatewaySubnet = {
+    address_prefix = "10.100.0.0/27"
+    name           = "GatewaySubnet"  # Override the auto-generated name
+  }
 }
 ```
 
@@ -207,37 +257,37 @@ Both approaches work, but separate folders provide better isolation.
 
 ## Common Patterns
 
-### Pattern 1: Basic Landing Zone
+### Pattern 1: Basic Landing Zone + Compute
 ```hcl
-enable_networking      = true
-enable_storage_account = true
-enable_key_vault      = true
+enable_hub_networking   = true
+enable_spoke_networking = true
+# storage_accounts and key_vaults defined in tfvars
 ```
 
 ### Pattern 2: VM-Based Workload
 ```hcl
-enable_networking      = true
-enable_storage_account = true
-enable_key_vault      = true
-enable_virtual_machine = true
+enable_hub_networking   = true
+enable_spoke_networking = true
+enable_virtual_machine  = true
 ```
 
 ### Pattern 3: App Service with Front Door
 ```hcl
-enable_networking      = true
-enable_storage_account = true
-enable_key_vault       = true
-enable_app_service     = true
-enable_front_door      = true
-enable_redis_cache     = true
+enable_hub_networking    = true
+enable_spoke_networking  = true
+enable_app_service       = true
+enable_front_door        = true   # deploys to LZ subscription
+enable_redis_cache       = true
+enable_shared_monitoring = true   # centralised logs
 ```
 
 ### Pattern 4: AVD — Small Deployment (single pool)
 ```hcl
-enable_networking = true
-enable_avd        = true
+enable_hub_networking   = true
+enable_spoke_networking = true
+enable_avd              = true
 
-subnets = {
+spoke_subnets = {
   mgmt        = { address_prefix = "10.0.255.0/24" }
   avd-general = { address_prefix = "10.0.10.0/23" }
 }
@@ -258,8 +308,9 @@ avd_host_pools = {
 
 ### Pattern 5: AVD — Large Deployment (multi-pool)
 ```hcl
-enable_networking = true
-enable_avd        = true
+enable_hub_networking   = true
+enable_spoke_networking = true
+enable_avd              = true
 
 avd_host_pools = {
   general     = { type = "Pooled",   session_host_count = 30, vm_size = "Standard_D4s_v5",  vm_name_prefix = "avdgen",  subnet_key = "avd-general", load_balancer_type = "BreadthFirst", enable_scaling_plan = true, admin_username = "avdadmin", admin_password = "..." }
@@ -270,7 +321,8 @@ avd_host_pools = {
 
 ### Pattern 6: Azure Container Apps (public)
 ```hcl
-enable_networking         = false   # Not required for serverless ACA
+enable_hub_networking     = true
+enable_spoke_networking   = false  # Not required for serverless ACA
 enable_aca                = true
 enable_container_registry = true
 
@@ -283,13 +335,17 @@ container_apps = {
 
 ### Pattern 7: Azure Container Apps (private / VNet-integrated)
 ```hcl
-enable_networking              = true
+enable_hub_networking          = true
+enable_spoke_networking        = true
 enable_aca                     = true
 enable_container_registry      = true
 aca_internal_load_balancer     = true
 
-subnets = {
-  aca = { address_prefix = "10.0.20.0/23" }   # Must delegate to Microsoft.App/environments
+spoke_subnets = {
+  aca = {
+    address_prefix = "10.0.20.0/23"   # Must delegate to Microsoft.App/environments
+    delegation = { name = "aca-delegation", service = "Microsoft.App/environments" }
+  }
 }
 ```
 
