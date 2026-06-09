@@ -241,13 +241,133 @@ variable "app_service_sku_name" {
 }
 
 # =====================================================
-# FRONT DOOR VARIABLES (Optional)
+# FRONT DOOR + WAF VARIABLES (Optional)
+# Used when enable_front_door = true
 # =====================================================
 
 variable "front_door_sku_name" {
-  description = "Front Door SKU (Standard_AzureFrontDoor or Premium_AzureFrontDoor)"
+  description = "Front Door SKU: 'Standard_AzureFrontDoor' or 'Premium_AzureFrontDoor'. WAF managed rules require Premium."
   type        = string
-  default     = "Standard_AzureFrontDoor"
+  default     = "Premium_AzureFrontDoor"
+  validation {
+    condition     = contains(["Standard_AzureFrontDoor", "Premium_AzureFrontDoor"], var.front_door_sku_name)
+    error_message = "front_door_sku_name must be 'Standard_AzureFrontDoor' or 'Premium_AzureFrontDoor'."
+  }
+}
+
+variable "front_door_response_timeout_seconds" {
+  description = "Seconds Front Door waits for an origin response before timing out (16–240)"
+  type        = number
+  default     = 120
+}
+
+variable "front_door_endpoints" {
+  description = "Map of Front Door endpoints. Most deployments only need the default entry."
+  type = map(object({
+    enabled = optional(bool, true)
+  }))
+  default = { default = {} }
+}
+
+variable "front_door_origin_groups" {
+  description = <<-EOT
+    Map of Front Door origin groups. Each group holds one or more backend origins.
+    Key is the group name suffix (e.g., "frontend", "api").
+    See modules/front-door/README.md for full examples.
+  EOT
+  type = map(object({
+    session_affinity_enabled             = optional(bool, false)
+    health_probe_path                    = optional(string, "/")
+    health_probe_protocol                = optional(string, "Https")
+    health_probe_interval_seconds        = optional(number, 100)
+    load_balancing_sample_size           = optional(number, 4)
+    load_balancing_successful_samples_required = optional(number, 3)
+    load_balancing_additional_latency_ms = optional(number, 50)
+    origins = map(object({
+      host_name                      = string
+      origin_host_header             = optional(string, null)
+      http_port                      = optional(number, 80)
+      https_port                     = optional(number, 443)
+      priority                       = optional(number, 1)
+      weight                         = optional(number, 1000)
+      enabled                        = optional(bool, true)
+      certificate_name_check_enabled = optional(bool, true)
+    }))
+  }))
+  default = {}
+}
+
+variable "front_door_routes" {
+  description = <<-EOT
+    Map of Front Door routes. Each route connects an endpoint to an origin group.
+    Key is the route name suffix (e.g., "frontend", "api").
+    See modules/front-door/README.md for full examples.
+  EOT
+  type = map(object({
+    endpoint_key        = string
+    origin_group_key    = string
+    patterns_to_match   = optional(list(string), ["/*"])
+    supported_protocols = optional(list(string), ["Http", "Https"])
+    https_redirect      = optional(bool, true)
+    forwarding_protocol = optional(string, "HttpsOnly")
+    cache_enabled       = optional(bool, false)
+    cache_query_string_caching_behavior = optional(string, "IgnoreQueryString")
+  }))
+  default = {}
+}
+
+# ── WAF ────────────────────────────────────────────────────────────────────────
+
+variable "enable_waf" {
+  description = "Enable WAF policy on Front Door. Managed rule sets require Premium SKU."
+  type        = bool
+  default     = true
+}
+
+variable "waf_mode" {
+  description = "WAF mode: 'Prevention' (blocks) or 'Detection' (logs only). Start with Detection, switch to Prevention after tuning."
+  type        = string
+  default     = "Prevention"
+}
+
+variable "waf_managed_rule_sets" {
+  description = "Microsoft-managed WAF rule sets (Premium SKU only). Defaults cover OWASP Top 10 and Bot Manager."
+  type = list(object({
+    type      = string
+    version   = string
+    overrides = optional(list(object({
+      rule_group_name = string
+      rules = optional(list(object({
+        rule_id = string
+        enabled = bool
+        action  = string
+      })), [])
+    })), [])
+  }))
+  default = [
+    { type = "Microsoft_DefaultRuleSet",    version = "2.1", overrides = [] },
+    { type = "Microsoft_BotManagerRuleSet", version = "1.0", overrides = [] }
+  ]
+}
+
+variable "waf_custom_rules" {
+  description = "Custom WAF rules (IP block, geo-filter, rate limit). Applied before managed rule sets. See modules/front-door/README.md for examples."
+  type = map(object({
+    priority  = number
+    rule_type = string
+    action    = string
+    match_conditions = list(object({
+      match_variable     = string
+      operator           = string
+      match_values       = list(string)
+      selector           = optional(string)
+      negation_condition = optional(bool, false)
+      transforms         = optional(list(string), [])
+    }))
+    rate_limit_duration_in_minutes = optional(number, 1)
+    rate_limit_threshold           = optional(number, 1000)
+  }))
+  default = {}
 }
 
 # =====================================================

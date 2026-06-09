@@ -84,6 +84,16 @@ output "sql_databases" {
 #   value       = var.enable_avd ? module.avd[0].total_session_host_count : 0
 # }
 
+# Front Door Outputs — uncomment these alongside the module call in networking-advanced.tf
+# output "front_door_hostnames" {
+#   description = "Map of endpoint keys to their Front Door hostnames"
+#   value       = var.enable_front_door ? module.front_door[0].endpoint_hostnames : {}
+# }
+# output "front_door_waf_policy_id" {
+#   description = "WAF policy resource ID"
+#   value       = var.enable_front_door ? module.front_door[0].waf_policy_id : null
+# }
+
 # ACA Outputs — uncomment these alongside the module call in aca.tf
 # output "aca_environment_id" {
 #   description = "Container App Environment resource ID"

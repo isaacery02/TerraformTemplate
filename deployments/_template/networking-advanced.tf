@@ -3,23 +3,38 @@
 # Typically used for production multi-region or high-availability setups
 
 # =====================================================
-# FRONT DOOR (Optional - for multi-region)
+# FRONT DOOR + WAF (Optional)
+# Global HTTP/S load balancer with CDN and WAF.
+# Does NOT require networking module — Front Door reaches origins over the internet.
+#
+# TO ENABLE:
+#   1. Set enable_front_door = true in terraform.tfvars
+#   2. Configure front_door_origin_groups, front_door_routes in terraform.tfvars
+#   3. Uncomment the module block below
+#   4. Uncomment the output blocks in outputs.tf
 # =====================================================
-# Uncomment and configure as needed
+
 # module "front_door" {
 #   count  = var.enable_front_door ? 1 : 0
 #   source = "../../modules/front-door"
-#   
+#
 #   customer_short_name = var.customer_short_name
 #   environment         = var.environment
-#   location            = "global"
-#   location_code       = "global"
+#   location            = var.location
 #   instance_number     = var.instance_number
-#   
-#   resource_group_name = module.networking[0].resource_group_name
-#   
-#   sku_name = var.front_door_sku_name
-#   
+#
+#   sku_name                 = var.front_door_sku_name
+#   response_timeout_seconds = var.front_door_response_timeout_seconds
+#
+#   endpoints     = var.front_door_endpoints
+#   origin_groups = var.front_door_origin_groups
+#   routes        = var.front_door_routes
+#
+#   enable_waf            = var.enable_waf
+#   waf_mode              = var.waf_mode
+#   waf_managed_rule_sets = var.waf_managed_rule_sets
+#   waf_custom_rules      = var.waf_custom_rules
+#
 #   tags = var.tags
 # }
 

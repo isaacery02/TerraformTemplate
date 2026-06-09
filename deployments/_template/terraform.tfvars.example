@@ -110,11 +110,12 @@ sql_databases = {
 # =====================================================
 enable_virtual_machine    = false
 enable_app_service        = false
-enable_front_door         = false
+enable_front_door         = false   # Azure Front Door + WAF
 enable_redis_cache        = false
 enable_avd                = false   # Azure Virtual Desktop
 enable_aca                = false   # Azure Container Apps
 enable_container_registry = false   # Azure Container Registry (for ACA)
+enable_waf                = true    # WAF on Front Door (only applies when enable_front_door = true)
 
 # =====================================================
 # NETWORKING CONFIGURATION
@@ -167,9 +168,90 @@ subnets = {
 # app_service_sku_name = "P1v2"  # B1, S1, P1v2, P2v2, etc.
 
 # =====================================================
-# FRONT DOOR CONFIGURATION (if enabled)
+# FRONT DOOR + WAF CONFIGURATION (if enable_front_door = true)
+#
+# QUICK START: fill in host_name values for your backends and apply.
+# MULTI-REGION: add secondary origins with priority = 2 for failover.
+# ACA BACKENDS: use module.aca[0].container_app_urls["app-key"] for host_name.
 # =====================================================
-# front_door_sku_name = "Standard_AzureFrontDoor"  # or Premium_AzureFrontDoor
+# front_door_sku_name              = "Premium_AzureFrontDoor"  # Premium required for WAF managed rules
+# front_door_response_timeout_seconds = 120
+# waf_mode = "Detection"   # Start with Detection, switch to Prevention after tuning
+#
+# front_door_origin_groups = {
+#   # ── SINGLE BACKEND: one origin group, one origin ─────────────────────
+#   app = {
+#     health_probe_path = "/health"
+#     origins = {
+#       primary = {
+#         host_name = "myapp.azurewebsites.net"   # replace with your backend hostname
+#       }
+#     }
+#   }
+#
+#   # ── MULTI-COMPONENT: separate groups for frontend + API ───────────────
+#   # frontend = {
+#   #   origins = {
+#   #     primary = { host_name = "ca-contoso-prod-eus-001-frontend.happyforest-12345.eastus.azurecontainerapps.io" }
+#   #   }
+#   # }
+#   # api = {
+#   #   health_probe_path = "/health"
+#   #   origins = {
+#   #     primary = { host_name = "ca-contoso-prod-eus-001-api.happyforest-12345.eastus.azurecontainerapps.io" }
+#   #   }
+#   # }
+#
+#   # ── MULTI-REGION ACTIVE/ACTIVE with failover ──────────────────────────
+#   # app = {
+#   #   origins = {
+#   #     eastus  = { host_name = "myapp-eus.azurewebsites.net", priority = 1, weight = 1000 }
+#   #     westus  = { host_name = "myapp-wus.azurewebsites.net", priority = 1, weight = 1000 }
+#   #     failover = { host_name = "myapp-neu.azurewebsites.net", priority = 2, weight = 500 }
+#   #   }
+#   # }
+# }
+#
+# front_door_routes = {
+#   # Route all traffic to the "app" origin group
+#   default-route = {
+#     endpoint_key     = "default"
+#     origin_group_key = "app"
+#     patterns_to_match = ["/*"]
+#     https_redirect    = true
+#   }
+#
+#   # ── SPLIT ROUTING: API and frontend to separate origin groups ─────────
+#   # api-route = {
+#   #   endpoint_key     = "default"
+#   #   origin_group_key = "api"
+#   #   patterns_to_match = ["/api/*"]
+#   #   forwarding_protocol = "HttpsOnly"
+#   # }
+#   # frontend-route = {
+#   #   endpoint_key     = "default"
+#   #   origin_group_key = "frontend"
+#   #   patterns_to_match = ["/*"]
+#   # }
+# }
+#
+# # ── WAF CUSTOM RULES (optional) ───────────────────────────────────────────
+# # waf_custom_rules = {
+# #   RateLimit = {
+# #     priority                       = 100
+# #     rule_type                      = "RateLimitRule"
+# #     action                         = "Block"
+# #     rate_limit_threshold           = 1000
+# #     rate_limit_duration_in_minutes = 1
+# #     match_conditions = [{ match_variable = "RemoteAddr", operator = "IPMatch", match_values = ["0.0.0.0/0"] }]
+# #   }
+# #   GeoBlock = {
+# #     priority  = 200
+# #     rule_type = "MatchRule"
+# #     action    = "Block"
+# #     match_conditions = [{ match_variable = "RemoteAddr", operator = "GeoMatch", match_values = ["CN", "RU", "KP"] }]
+# #   }
+# # }
 
 # =====================================================
 # REDIS CACHE CONFIGURATION (if enabled)
