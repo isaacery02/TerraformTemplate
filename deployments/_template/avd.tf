@@ -40,6 +40,7 @@
 #       vm_name_prefix        = pool.vm_name_prefix
 #       subnet_id             = module.networking[0].subnet_ids[pool.subnet_key]
 #       os_disk_type          = pool.os_disk_type
+#       source_image_id       = pool.source_image_id   # null = use marketplace image below
 #       image_publisher       = pool.image_publisher
 #       image_offer           = pool.image_offer
 #       image_sku             = pool.image_sku

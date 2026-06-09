@@ -108,7 +108,19 @@ variable "host_pools" {
     subnet_id = string
 
     # ── OS image ───────────────────────────────────────────────────────────
-    os_disk_type    = optional(string, "Premium_LRS")
+    os_disk_type = optional(string, "Premium_LRS")
+
+    # source_image_id: use a golden/custom image instead of a marketplace image.
+    # Mutually exclusive with image_publisher/offer/sku — set one or the other.
+    # Accepted formats:
+    #   Azure Compute Gallery image version:
+    #     /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Compute/
+    #     galleries/{gallery}/images/{imageDef}/versions/{version|latest}
+    #   Managed image:
+    #     /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Compute/images/{name}
+    source_image_id = optional(string, null)
+
+    # Marketplace image fields — only used when source_image_id = null
     image_publisher = optional(string, "MicrosoftWindowsDesktop")
     # image_offer/sku: common options below
     #   Windows 11 AVD multi-session: offer="windows-11", sku="win11-23h2-avd"

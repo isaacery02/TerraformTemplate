@@ -202,8 +202,11 @@ subnets = {
 #     vm_size               = "Standard_D4s_v5"
 #     vm_name_prefix        = "avdgen"        # → avdgen001 … avdgen005
 #     subnet_key            = "avd-general"
+#     # Marketplace image (default) — OR use source_image_id below for a golden image
 #     image_offer           = "windows-11"
 #     image_sku             = "win11-23h2-avd"
+#     # Golden image from Azure Compute Gallery (leave commented to use marketplace image above):
+#     # source_image_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-images/providers/Microsoft.Compute/galleries/MyGallery/images/AVDGolden/versions/latest"
 #     aad_joined            = true
 #     admin_username        = "avdadmin"
 #     admin_password        = "ChangeMe123!"  # store in Key Vault in production

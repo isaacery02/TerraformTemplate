@@ -314,10 +314,14 @@ variable "avd_host_pools" {
     vm_size               = string
     vm_name_prefix        = string
     subnet_key            = string
-    os_disk_type          = optional(string, "Premium_LRS")
-    image_publisher       = optional(string, "MicrosoftWindowsDesktop")
-    image_offer           = optional(string, "windows-11")
-    image_sku             = optional(string, "win11-23h2-avd")
+    os_disk_type    = optional(string, "Premium_LRS")
+    # source_image_id: set to an Azure Compute Gallery or managed image resource ID to use
+    # a golden image. When set, image_publisher/offer/sku are ignored.
+    # Example: "/subscriptions/.../galleries/MyGallery/images/AVDGolden/versions/latest"
+    source_image_id = optional(string, null)
+    image_publisher = optional(string, "MicrosoftWindowsDesktop")
+    image_offer     = optional(string, "windows-11")
+    image_sku       = optional(string, "win11-23h2-avd")
     aad_joined            = optional(bool, true)
     intune_enrollment     = optional(bool, false)
     admin_username        = string

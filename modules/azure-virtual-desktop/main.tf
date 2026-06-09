@@ -147,11 +147,18 @@ resource "azurerm_windows_virtual_machine" "session_hosts" {
     storage_account_type = each.value.pool.os_disk_type
   }
 
-  source_image_reference {
-    publisher = each.value.pool.image_publisher
-    offer     = each.value.pool.image_offer
-    sku       = each.value.pool.image_sku
-    version   = "latest"
+  # source_image_id and source_image_reference are mutually exclusive on this resource.
+  # When source_image_id is set (golden/custom image), the dynamic block produces nothing.
+  source_image_id = each.value.pool.source_image_id
+
+  dynamic "source_image_reference" {
+    for_each = each.value.pool.source_image_id == null ? [1] : []
+    content {
+      publisher = each.value.pool.image_publisher
+      offer     = each.value.pool.image_offer
+      sku       = each.value.pool.image_sku
+      version   = "latest"
+    }
   }
 
   # Windows_Client enables Azure Hybrid Benefit for Windows 10/11 Enterprise AVD images.

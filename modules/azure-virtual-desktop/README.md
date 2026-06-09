@@ -114,6 +114,26 @@ subnets = {
 
 Minimum subnet sizes: `/27` (32 addresses) per subnet. For large pools, size generously — at least 2× the VM count.
 
+## Golden images (Azure Compute Gallery)
+
+Set `source_image_id` on a pool to use a custom image instead of a marketplace image. `source_image_id` and `image_offer`/`image_sku` are mutually exclusive — the marketplace fields are silently ignored when `source_image_id` is set.
+
+```hcl
+avd_host_pools = {
+  general = {
+    # ...
+    source_image_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-images/providers/Microsoft.Compute/galleries/CorpGallery/images/AVDGolden/versions/latest"
+    # image_publisher / image_offer / image_sku are ignored when source_image_id is set
+  }
+}
+```
+
+Accepted formats:
+- **Azure Compute Gallery (recommended):** `.../galleries/{gallery}/images/{imageDef}/versions/{version}` — use `latest` to always pull the newest version
+- **Managed image:** `.../providers/Microsoft.Compute/images/{name}`
+
+Azure Hybrid Benefit (`license_type = "Windows_Client"`) still applies to golden images built from Windows 10/11 Enterprise base images.
+
 ## Entra ID vs Domain Join
 
 | Scenario | `aad_joined` | Notes |
