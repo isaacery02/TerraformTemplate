@@ -1,23 +1,23 @@
-# Core Infrastructure
-# This file contains foundational resources that are always required
-# - Networking (VNet, Subnets, NSGs)
-# - Resource Groups
+# Core Infrastructure — Compute subscription
+# Spoke VNet, subnets, and NSGs for customer workloads.
+# Peered back to the hub VNet (Landing Zone) via hub-spoke-peering.tf.
 
 # =====================================================
-# NETWORKING MODULE (Core - Always Required)
+# SPOKE NETWORKING (Compute subscription)
 # =====================================================
-module "networking" {
-  count  = var.enable_networking ? 1 : 0
+module "spoke_networking" {
+  count  = var.enable_spoke_networking ? 1 : 0
   source = "../../modules/networking"
-  
+  providers = { azurerm = azurerm.compute }
+
   customer_short_name = var.customer_short_name
   environment         = var.environment
   location            = var.location
   location_code       = var.location_code
   instance_number     = var.instance_number
-  
-  vnet_address_space = var.vnet_address_space
-  subnets            = var.subnets
-  
-  tags = var.tags
+
+  vnet_address_space = var.spoke_vnet_address_space
+  subnets            = var.spoke_subnets
+
+  tags = merge(var.tags, { NetworkTier = "Spoke" })
 }
